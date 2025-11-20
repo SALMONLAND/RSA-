@@ -6,14 +6,13 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
-RSA(Rivest-Shamir-Adleman) 공개키 암호화 시스템의 동작 원리를 이해하고 실습할 수 있는 CLI 기반 시뮬레혁 (Lee Kwan-Yeop)**
+RSA(Rivest-Shamir-Adleman) 공개키 암호화 시스템의 동작 원리를 이해하고 실습할 수 있는 CLI 기반 시뮬레이션
 - 🏫 동원동우고등학교
-- 🔐 사이버보안 전공 희망
 - 📧 Contact: [GitHub Issues](../../issues)
 
 ### 개발 배경
 국정원-경기도교육청 공동 사이버보안 캠프 참여 후 암호학에 대한 이해를 심화하고, RSA 알고리즘의 동작 원리를 직접 구현해보고자 이 프로젝트를 시작했습니다.
-
+(+ 수행평가)
 ---
 
 ## 📚 참고 자료
