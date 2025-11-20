@@ -1,0 +1,388 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+// RSA 키 구조체
+typedef struct {
+    long long e;  // 공개지수 (Public Exponent)
+    long long d;  // 개인지수 (Private Exponent)
+    long long n;  // 모듈러스 (Modulus)
+    long long p;  // 소수 p (디버깅용)
+    long long q;  // 소수 q (디버깅용)
+} RSAKey;
+
+// 함수 선언
+int isPrime(long long num);
+long long gcd(long long a, long long b);
+long long modInverse(long long e, long long phi);
+long long modPow(long long base, long long exp, long long mod);
+RSAKey generateKeys(long long p, long long q, long long e);
+void encrypt(char *plaintext, long long *ciphertext, long long e, long long n);
+void decrypt(long long *ciphertext, char *plaintext, int len, long long d, long long n);
+void displayKeys(RSAKey key);
+void printSeparator();
+
+// 메인 함수
+int main() {
+    RSAKey key = {0, 0, 0, 0, 0};
+    char plaintext[101];
+    char decrypted[101];
+    long long ciphertext[101];
+    int cipherLen = 0;
+    int choice;
+    
+    printf("╔════════════════════════════════════════╗\n");
+    printf("║  RSA 암호화 시뮬레이터 v1.0            ║\n");
+    printf("║  개발: 이관엽 (Cyber Security Project) ║\n");
+    printf("╚════════════════════════════════════════╝\n");
+    
+    while (1) {
+        printf("\n┌────────────────────────────┐\n");
+        printf("│      메인 메뉴             │\n");
+        printf("└────────────────────────────┘\n");
+        printf("1. RSA 키 생성\n");
+        printf("2. 메시지 암호화\n");
+        printf("3. 메시지 복호화\n");
+        printf("4. 현재 키 정보 확인\n");
+        printf("5. 종료\n");
+        printf("\n선택 >> ");
+        scanf("%d", &choice);
+        getchar(); // 버퍼 비우기
+        
+        switch(choice) {
+            case 1: {
+                long long p, q, e;
+                
+                printSeparator();
+                printf("       RSA 키 생성 모드\n");
+                printSeparator();
+                
+                // p 입력
+                while (1) {
+                    printf("\n첫 번째 소수 p를 입력하세요 (11~997): ");
+                    scanf("%lld", &p);
+                    
+                    if (p < 11 || p > 997) {
+                        printf("[오류] 범위를 벗어났습니다. 11~997 사이의 값을 입력하세요.\n");
+                        continue;
+                    }
+                    
+                    if (!isPrime(p)) {
+                        printf("[오류] %lld은(는) 소수가 아닙니다.\n", p);
+                        continue;
+                    }
+                    break;
+                }
+                
+                // q 입력
+                while (1) {
+                    printf("두 번째 소수 q를 입력하세요 (11~997, p와 달라야 함): ");
+                    scanf("%lld", &q);
+                    
+                    if (q < 11 || q > 997) {
+                        printf("[오류] 범위를 벗어났습니다.\n");
+                        continue;
+                    }
+                    
+                    if (p == q) {
+                        printf("[오류] p와 q는 서로 달라야 합니다.\n");
+                        continue;
+                    }
+                    
+                    if (!isPrime(q)) {
+                        printf("[오류] %lld은(는) 소수가 아닙니다.\n", q);
+                        continue;
+                    }
+                    break;
+                }
+                
+                // e 입력
+                printf("\n공개지수 e를 입력하세요 (0 입력 시 기본값 65537 사용): ");
+                scanf("%lld", &e);
+                
+                // 키 생성
+                key = generateKeys(p, q, e);
+                
+                if (key.e == 0) {
+                    printf("\n[오류] 키 생성에 실패했습니다.\n");
+                    break;
+                }
+                
+                printSeparator();
+                printf("   ✓ RSA 키 생성 완료!\n");
+                printSeparator();
+                displayKeys(key);
+                
+                break;
+            }
+            
+            case 2: {
+                if (key.n == 0) {
+                    printf("\n[오류] 먼저 키를 생성해주세요 (메뉴 1번).\n");
+                    break;
+                }
+                
+                printSeparator();
+                printf("       메시지 암호화\n");
+                printSeparator();
+                
+                printf("\n암호화할 메시지를 입력하세요 (최대 100자): ");
+                fgets(plaintext, sizeof(plaintext), stdin);
+                plaintext[strcspn(plaintext, "\n")] = 0; // 개행 제거
+                
+                if (strlen(plaintext) == 0) {
+                    printf("[오류] 빈 메시지는 암호화할 수 없습니다.\n");
+                    break;
+                }
+                
+                printf("\n[원본 메시지]\n%s\n", plaintext);
+                
+                encrypt(plaintext, ciphertext, key.e, key.n);
+                cipherLen = strlen(plaintext);
+                
+                printf("\n[암호문 (숫자 형태)]\n");
+                for (int i = 0; i < cipherLen; i++) {
+                    printf("%lld ", ciphertext[i]);
+                }
+                printf("\n");
+                printSeparator();
+                
+                break;
+            }
+            
+            case 3: {
+                if (key.n == 0) {
+                    printf("\n[오류] 먼저 키를 생성해주세요 (메뉴 1번).\n");
+                    break;
+                }
+                
+                if (cipherLen == 0) {
+                    printf("\n[오류] 먼저 메시지를 암호화해주세요 (메뉴 2번).\n");
+                    break;
+                }
+                
+                printSeparator();
+                printf("       메시지 복호화\n");
+                printSeparator();
+                
+                printf("\n[암호문]\n");
+                for (int i = 0; i < cipherLen; i++) {
+                    printf("%lld ", ciphertext[i]);
+                }
+                printf("\n");
+                
+                decrypt(ciphertext, decrypted, cipherLen, key.d, key.n);
+                
+                printf("\n[복호화된 메시지]\n%s\n", decrypted);
+                printSeparator();
+                
+                // 원본과 비교
+                if (strcmp(plaintext, decrypted) == 0) {
+                    printf("✓ 복호화 성공! 원본 메시지와 일치합니다.\n");
+                } else {
+                    printf("✗ 복호화 실패! 원본 메시지와 불일치합니다.\n");
+                }
+                
+                break;
+            }
+            
+            case 4: {
+                if (key.n == 0) {
+                    printf("\n[경고] 아직 키가 생성되지 않았습니다.\n");
+                } else {
+                    printSeparator();
+                    printf("    현재 키 정보\n");
+                    printSeparator();
+                    displayKeys(key);
+                }
+                break;
+            }
+            
+            case 5: {
+                printf("\n프로그램을 종료합니다. 감사합니다!\n");
+                return 0;
+            }
+            
+            default: {
+                printf("\n[오류] 잘못된 선택입니다. 1~5 사이의 숫자를 입력하세요.\n");
+            }
+        }
+    }
+    
+    return 0;
+}
+
+// 소수 판별 함수
+int isPrime(long long num) {
+    if (num < 2) return 0;
+    if (num == 2) return 1;
+    if (num % 2 == 0) return 0;
+    
+    for (long long i = 3; i * i <= num; i += 2) {
+        if (num % i == 0) return 0;
+    }
+    return 1;
+}
+
+// 최대공약수 (유클리드 호제법)
+long long gcd(long long a, long long b) {
+    while (b != 0) {
+        long long temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
+
+// 모듈러 역원 계산 (확장 유클리드 호제법)
+long long modInverse(long long e, long long phi) {
+    long long t = 0, newT = 1;
+    long long r = phi, newR = e;
+    
+    while (newR != 0) {
+        long long quotient = r / newR;
+        
+        long long tempT = t;
+        t = newT;
+        newT = tempT - quotient * newT;
+        
+        long long tempR = r;
+        r = newR;
+        newR = tempR - quotient * newR;
+    }
+    
+    if (r > 1) return -1; // 역원이 존재하지 않음
+    if (t < 0) t += phi;
+    
+    return t;
+}
+
+// 모듈러 거듭제곱 (빠른 거듭제곱)
+long long modPow(long long base, long long exp, long long mod) {
+    long long result = 1;
+    base = base % mod;
+    
+    while (exp > 0) {
+        if (exp % 2 == 1) {
+            result = (result * base) % mod;
+        }
+        exp = exp >> 1;  // exp /= 2
+        base = (base * base) % mod;
+    }
+    
+    return result;
+}
+
+// RSA 키 생성
+RSAKey generateKeys(long long p, long long q, long long e) {
+    RSAKey key;
+    key.p = p;
+    key.q = q;
+    
+    // 1. n = p * q
+    key.n = p * q;
+    
+    // 2. φ(n) = (p-1)(q-1)
+    long long phi = (p - 1) * (q - 1);
+    
+    // 3. e 설정 (0이면 기본값 사용)
+    if (e == 0 || e == 1) {
+        // 기본값 중에서 phi와 서로소인 값 찾기
+        e = 65537;
+        if (phi <= e || gcd(e, phi) != 1) {
+            e = 17;
+            if (gcd(e, phi) != 1) {
+                e = 3;
+            }
+        }
+    }
+    
+    // e 유효성 검사
+    if (e >= phi || gcd(e, phi) != 1) {
+        printf("\n[디버그] e=%lld, phi=%lld, gcd=%lld\n", e, phi, gcd(e, phi));
+        printf("[오류] e와 φ(n)이 서로소가 아니거나 범위를 벗어났습니다.\n");
+        key.e = 0;
+        return key;
+    }
+    
+    key.e = e;
+    
+    // 4. d = e^(-1) mod φ(n)
+    key.d = modInverse(e, phi);
+    
+    if (key.d == -1) {
+        printf("[오류] 개인키(d) 계산에 실패했습니다.\n");
+        key.e = 0;
+        return key;
+    }
+    
+    return key;
+}
+
+// 암호화
+void encrypt(char *plaintext, long long *ciphertext, long long e, long long n) {
+    int len = strlen(plaintext);
+    
+    printf("\n[문자별 암호화 과정]\n");
+    printf("%-5s %-8s %-20s %s\n", "문자", "ASCII", "수식", "암호문");
+    printf("────────────────────────────────────────────────\n");
+    
+    for (int i = 0; i < len; i++) {
+        long long m = (long long)(unsigned char)plaintext[i];
+        ciphertext[i] = modPow(m, e, n);
+        
+        printf("%-5c %-8lld %lld^%lld mod %lld = %lld\n",
+               plaintext[i], m, m, e, n, ciphertext[i]);
+    }
+}
+
+// 복호화
+void decrypt(long long *ciphertext, char *plaintext, int len, long long d, long long n) {
+    printf("\n[문자별 복호화 과정]\n");
+    printf("%-10s %-30s %-8s %s\n", "암호문", "수식", "ASCII", "문자");
+    printf("────────────────────────────────────────────────────────\n");
+    
+    for (int i = 0; i < len; i++) {
+        long long c = ciphertext[i];
+        long long m = modPow(c, d, n);
+        plaintext[i] = (char)m;
+        
+        printf("%-10lld %lld^%lld mod %lld = %-8lld %c\n",
+               c, c, d, n, m, (char)m);
+    }
+    
+    plaintext[len] = '\0';
+}
+
+// 키 정보 출력
+void displayKeys(RSAKey key) {
+    long long phi = (key.p - 1) * (key.q - 1);
+    
+    printf("\n[선택한 소수]\n");
+    printf("  p = %lld\n", key.p);
+    printf("  q = %lld\n", key.q);
+    
+    printf("\n[계산 과정]\n");
+    printf("  n = p × q = %lld × %lld = %lld\n", key.p, key.q, key.n);
+    printf("  φ(n) = (p-1) × (q-1) = %lld × %lld = %lld\n", 
+           key.p-1, key.q-1, phi);
+    
+    printf("\n[공개키 (Public Key)] - 암호화에 사용\n");
+    printf("  (e, n) = (%lld, %lld)\n", key.e, key.n);
+    
+    printf("\n[개인키 (Private Key)] - 복호화에 사용\n");
+    printf("  (d, n) = (%lld, %lld)\n", key.d, key.n);
+    
+    printf("\n[검증]\n");
+    printf("  e × d mod φ(n) = %lld × %lld mod %lld = %lld\n",
+           key.e, key.d, phi, (key.e * key.d) % phi);
+    
+    if ((key.e * key.d) % phi == 1) {
+        printf("  ✓ 키가 올바르게 생성되었습니다!\n");
+    }
+}
+
+// 구분선 출력
+void printSeparator() {
+    printf("════════════════════════════════════════\n");
+}
